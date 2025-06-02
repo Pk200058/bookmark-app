@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Bookmark Categories</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f0f4f8;
+      padding: 20px;
+      text-align: center;
+    }
+    h1 { margin-bottom: 10px; }
+    input, button, select {
+      padding: 8px;
+      margin: 5px;
+      border-radius: 5px;
+      border: 1px solid #ccc;
+      font-size: 14px;
+    }
+    .controls { margin-bottom: 20px; }
+    .category, .card {
+      background: white;
+      padding: 15px;
+      margin: 10px auto;
+      border-radius: 10px;
+      max-width: 500px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    .card-list {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 15px;
+    }
+    .card-title { font-weight: bold; margin-bottom: 10px; }
+    .card-info {
+      font-size: 14px;
+      margin: 3px 0;
+    }
+    .category-actions {
+      margin-top: 10px;
+    }
+    .category-actions button,
+    .category-actions a {
+      padding: 4px 8px;
+      font-size: 12px;
+      margin-right: 5px;
+      border-radius: 5px;
+      border: none;
+      cursor: pointer;
+    }
+    .category-actions a {
+      background: #ddd;
+      text-decoration: none;
+      display: inline-block;
+      border-radius: 50%;
+      width: 32px;
+      height: 32px;
+      line-height: 32px;
+      text-align: center;
+      transition: background 0.3s;
+    }
+    .category-actions a:hover {
+      background: #4caf50;
+      color: white;
+    }
+    .sublink {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin: 10px 0;
+    }
+    .sublink i {
+      margin-right: 10px;
+    }
+    .slider { width: 100px; }
+
+    #toggleCategoryBtn {
+      margin-top: 10px;
+      background-color: #007bff;
+      color: white;
+    }
+  </style>
+</head>
+<body>
+  <h1>Bookmark Categories</h1>
+
+  <button id="toggleCategoryBtn" onclick="toggleCategorySection()">Hide Categories</button>
+
+  <div class="controls">
+    <input type="text" id="newCategory" placeholder="New Category Name">
+    <button onclick="addCategory()">Add Category</button>
+
+    <label for="sortBy">Sort by:</label>
+    <select id="sortBy" onchange="sortCards()">
+      <option value="name-asc">Category Name (A–Z)</option>
+      <option value="name-desc">Category Name (Z–A)</option>
+      <option value="percent-asc">Percentage (Low to High)</option>
+      <option value="percent-desc">Percentage (High to Low)</option>
+      <option value="date-desc">Newest</option>
+      <option value="date-asc">Oldest</option>
+    </select>
+  </div>
+
+  <div id="categoryList"></div>
+  <div class="card-list" id="cardList"></div>
+
+  <script>
+    function slugify(text) {
+      return text.toLowerCase().replace(/\s+/g, '-').replace(/[^\w\-]+/g, '');
+    }
+
+    function getCategoriesData() {
+      return JSON.parse(localStorage.getItem("categoriesData")) || [];
+    }
+
+    function saveCategoriesData(data) {
+      localStorage.setItem("categoriesData", JSON.stringify(data));
+    }
+
+    function getCategoryNames() {
+      return JSON.parse(localStorage.getItem('bookmarkCategories')) || [];
+    }
+
+    function saveCategoryNames(categories) {
+      localStorage.setItem('bookmarkCategories', JSON.stringify(categories));
+    }
+
+    function loadCategories() {
+      const categories = getCategoryNames();
+      const data = getCategoriesData();
+      const list = document.getElementById('categoryList');
+      list.innerHTML = '';
+
+      categories.forEach((cat, index) => {
+        const slug = slugify(cat);
+        const cardData = data.find(d => d.name === cat) || { percent: 10 };
+        list.innerHTML += `
+          <div class="category">
+            <strong>${cat}</strong>
+            <div class="category-actions">
+              <a href="subpage.html?category=${encodeURIComponent(slug)}" target="_blank" title="Open Subpage">Click🔗</a>
+              <button onclick="editCategory(${index})">Edit</button>
+              <button onclick="deleteCategory(${index})">Delete</button>
+            </div>
+            <div class="sublink">
+              <span><i>⚙️</i></span>
+              <input type="range" min="0" max="100" value="${cardData.percent}" class="slider" 
+                     onchange="updateProgress(this, '${cat}')">
+              <span class="percentage">${cardData.percent}%</span>
+            </div>
+          </div>
+        `;
+      });
+    }
+
+    function addCategory() {
+      const input = document.getElementById('newCategory');
+      const name = input.value.trim();
+      if (!name) return alert("Enter a name.");
+
+      let categories = getCategoryNames();
+      if (categories.includes(name)) return alert("Category exists.");
+
+      categories.push(name);
+      saveCategoryNames(categories);
+
+      let data = getCategoriesData();
+      data.push({
+        name: name,
+        person: "PangkozKumar",
+        percent: 10,
+        link: `subpage.html?category=${slugify(name)}`,
+        date: new Date().toISOString()
+      });
+      saveCategoriesData(data);
+
+      input.value = '';
+      loadCategories();
+      renderCards();
+    }
+
+    function editCategory(index) {
+      const categories = getCategoryNames();
+      const newName = prompt("Edit category name:", categories[index]);
+      if (newName && !categories.includes(newName)) {
+        let oldName = categories[index];
+        categories[index] = newName;
+        saveCategoryNames(categories);
+
+        let data = getCategoriesData();
+        data.forEach(card => {
+          if (card.name === oldName) {
+            card.name = newName;
+            card.link = `subpage.html?category=${slugify(newName)}`;
+          }
+        });
+        saveCategoriesData(data);
+
+        loadCategories();
+        renderCards();
+      } else if (categories.includes(newName)) {
+        alert("Name already exists!");
+      }
+    }
+
+    function deleteCategory(index) {
+      const categories = getCategoryNames();
+      const name = categories[index];
+      if (confirm("Delete this category?")) {
+        categories.splice(index, 1);
+        saveCategoryNames(categories);
+
+        let data = getCategoriesData().filter(card => card.name !== name);
+        saveCategoriesData(data);
+
+        loadCategories();
+        renderCards();
+      }
+    }
+
+    function updateProgress(slider, catName) {
+      const percent = slider.value;
+      slider.nextElementSibling.textContent = percent + '%';
+
+      let data = getCategoriesData();
+      const cat = data.find(item => item.name === catName);
+      if (cat) {
+        cat.percent = parseInt(percent);
+        saveCategoriesData(data);
+        renderCards();
+      }
+    }
+
+    function renderCards() {
+      const list = document.getElementById("cardList");
+      list.innerHTML = "";
+
+      let data = getCategoriesData();
+
+      data.forEach(cat => {
+        const div = document.createElement("div");
+        div.className = "card";
+        div.innerHTML = `
+          <div class="card-title">${cat.name}</div>
+          <div class="card-info">Category: ${cat.name}</div>
+          <div class="card-info">Name: ${cat.person}</div>
+          <div class="card-info">Percentage: ${cat.percent}%</div>
+          <div class="card-info">Created: ${new Date(cat.date).toLocaleDateString()}</div>
+          <div class="card-info">
+            // <a href="${cat.link}" target="_blank">Open Page</a>
+          </div>
+        `;
+        list.appendChild(div);
+      });
+    }
+
+    function sortCards() {
+      let data = getCategoriesData();
+      const sortBy = document.getElementById("sortBy").value;
+
+      if (sortBy === "name-asc") {
+        data.sort((a, b) => a.name.localeCompare(b.name));
+      } else if (sortBy === "name-desc") {
+        data.sort((a, b) => b.name.localeCompare(a.name));
+      } else if (sortBy === "percent-asc") {
+        data.sort((a, b) => a.percent - b.percent);
+      } else if (sortBy === "percent-desc") {
+        data.sort((a, b) => b.percent - a.percent);
+      } else if (sortBy === "date-asc") {
+        data.sort((a, b) => new Date(a.date) - new Date(b.date));
+      } else if (sortBy === "date-desc") {
+        data.sort((a, b) => new Date(b.date) - new Date(a.date));
+      }
+
+      saveCategoriesData(data);
+      renderCards();
+    }
+
+    function toggleCategorySection() {
+      const section = document.getElementById("categoryList");
+      const btn = document.getElementById("toggleCategoryBtn");
+
+      if (section.style.display === "none") {
+        section.style.display = "block";
+        btn.textContent = "Hide Categories";
+      } else {
+        section.style.display = "none";
+        btn.textContent = "Show Categories";
+      }
+    }
+
+    window.onload = () => {
+      loadCategories();
+      renderCards();
+    };
+  </script>
+</body>
+</html>
